@@ -1,3 +1,4 @@
+#/usr/bin/env python3
 from random import shuffle
 from typing import List
 
@@ -9,13 +10,19 @@ class Puzzle:
         self.matrix = [[]*size]
         for index, value in enumerate(values):
             line, column = divmod(index, size)
-            self.matrix[line, column] = value
+            self.matrix[line][column] = value
 
     @classmethod
     def from_random(cls, size):
         values = list(range(size))
         shuffle(values)
         return cls(size, values)
+
+
+    @classmethod
+    def from_keyboard(cls):
+        #TODO: implent this
+        pass
 
     def move(self, x: int, y: int, dx: int, dy: int):
         # TODO: implement this
@@ -37,7 +44,7 @@ class Puzzle:
                     correct_positions += 1
         return correct_positions
 
-    def manhattan(self, line, column):
+    def manhattan_distance(self, line, column):
         value = self.matrix[line][column]
         expected_line, expected_column = divmod(value-1, self.size)
 
