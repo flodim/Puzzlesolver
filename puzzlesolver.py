@@ -18,16 +18,17 @@ class Puzzle:
         shuffle(values)
         return cls(size, values)
 
-
     @classmethod
     def from_keyboard(cls):
-        #TODO: implent this
-        pass
+        size = int(input('enter matrix size: '))
+        values = list(range(size))
+        for i in range(0, size):
+            values[i] = int(input("enter value "+str(i)+": "))
+        return cls(size, values)
 
     def move(self, x: int, y: int, dx: int, dy: int):
-        # TODO: implement this
+        # TODO: implement move
         pass
-
 
     def solve(self):
         pass
