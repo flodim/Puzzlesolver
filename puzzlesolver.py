@@ -3,6 +3,7 @@ from random import shuffle
 from typing import List, Optional, IO
 from io import StringIO
 
+
 class Puzzle:
     def __init__(self, size: int, values: List[int]):
         self.size = size
@@ -86,24 +87,36 @@ class Puzzle:
         expected = line*self.size + column + 1
         return self.matrix[line][column] == expected
 
-    def count_correct(self):
-        correct_positions = 0
-        for line in range(self.size):
-            for column in range(self.size):
-                if self.cell_is_correct(line, column):
-                    correct_positions += 1
-        return correct_positions
+    @property
+    def matrix_indices(self):
+        return ((line, column)
+                for line in range(self.size)
+                for column in range(self.size))
+
+    @property
+    def nb_correct(self):
+        correct_cells = sum(1 for l, c in self.matrix_indices
+                            if self.cell_is_correct(l, c))
+        return correct_cells
 
     @property
     def is_solved(self):
-        return self.count_correct() == self.nb_values
+        return self.nb_correct == self.nb_values
 
     def manhattan_distance(self, line: int, column: int):
         value = self.matrix[line][column]
         expected_line, expected_column = divmod(value-1, self.size)
         v_distance = abs(line-expected_line)
         h_distance = abs(column-expected_column)
-        return v_distance, h_distance
+        distance = v_distance + h_distance
+        return distance
+
+    @property
+    def total_manhattan_distance(self):
+        distances = (self.manhattan_distance(l, c)
+                     for l, c in self.matrix_indices)
+        total = sum(distances)
+        return total
 
 
 if __name__ == '__main__':
