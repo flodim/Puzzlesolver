@@ -25,7 +25,7 @@ class Puzzle:
     def from_keyboard(cls):
         size = int(input('enter matrix size: '))
         values = list(range(size))
-        for i in range(0, size):
+        for i in range(0, size*size):
             values[i] = int(input("enter value "+str(i)+": "))
         return cls(size, values)
 
