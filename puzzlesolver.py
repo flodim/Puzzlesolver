@@ -4,6 +4,8 @@ from random import shuffle
 from typing import List, Optional, IO
 from io import StringIO
 
+from copy import deepcopy
+
 UP = (0, -1)
 DOWN = (0, 1)
 LEFT = (-1, 0)
@@ -59,7 +61,7 @@ class Puzzle:
         target_line = self.empty_line + dy
         target_column = self.empty_column + dx
         target_value = self.matrix[target_line][target_column]
-        new_matrix = self.matrix
+        new_matrix = deepcopy(self.matrix)
         new_matrix[target_line][target_column] = 0
         new_matrix[self.empty_line][self.empty_column] = target_value
         new_empty_line = target_line
@@ -141,8 +143,6 @@ class Puzzle:
 def solve(initial_puzzle: Puzzle):
     queue = Queue()
 
-    print(initial_puzzle)
-
     if initial_puzzle.is_solved:
         return [initial_puzzle]
 
@@ -155,7 +155,7 @@ def solve(initial_puzzle: Puzzle):
             return
 
         for successor in current_state.successors:
-            print(successor)
+            # print(successor)
             if successor.is_solved:
                 return successor.path
             queue.put(successor)
