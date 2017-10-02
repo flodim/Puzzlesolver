@@ -1,91 +1,101 @@
-#/usr/bin/env python3
+# /usr/bin/env python3
+from queue import Queue, Empty
 from random import shuffle
 from typing import List, Optional, IO
 from io import StringIO
 
+UP = (0, -1)
+DOWN = (0, 1)
+LEFT = (-1, 0)
+RIGHT = (1, 0)
+
 
 class Puzzle:
-    def __init__(self, size: int, values: List[int]):
+    def __init__(
+            self, size: int,
+            matrix: List[List[int]],
+            empty_line: int,
+            empty_column: int,
+            last_move=None,
+            last_state=None):
+
         self.size = size
-        self.nb_values = size*size - 1
-        self.matrix = [[-1]*size for _ in range(size)]
+        self.nb_values = size * size - 1
+        self.matrix = matrix
+        self.empty_line = empty_line
+        self.empty_column = empty_column
+        self.last_move = last_move
+        self.last_state = last_state
+
+    @classmethod
+    def from_list(cls, size, values: List[int]):
+        empty_line = None
+        empty_column = None
+        matrix = [[-1] * size for _ in range(size)]
         for index, value in enumerate(values):
             line, column = divmod(index, size)
-            self.matrix[line][column] = value
+            matrix[line][column] = value
             if value == 0:
-                self.empty_line = line
-                self.empty_column = column
+                empty_line = line
+                empty_column = column
+        return cls(size, matrix, empty_line, empty_column)
 
     @classmethod
     def from_random(cls, size):
-        values = list(range(size*size))
+        values = list(range(size * size))
         shuffle(values)
-        return cls(size, values)
+        return cls.from_list(size, values)
 
     @classmethod
     def from_keyboard(cls):
         size = int(input('enter matrix size: '))
         values = list(range(size))
-        for i in range(0, size*size):
-            values[i] = int(input("enter value "+str(i)+": "))
-        return cls(size, values)
+        for i in range(0, size * size):
+            values[i] = int(input("enter value " + str(i) + ": "))
+        return cls.from_list(size, values)
 
-    def move(self, dx: int, dy: int):
-        target_line = self.empty_line+dy
-        target_column = self.empty_column+dx
+    def move(self, direction):
+        dx, dy = direction
+        target_line = self.empty_line + dy
+        target_column = self.empty_column + dx
         target_value = self.matrix[target_line][target_column]
-        self.matrix[target_line][target_column] = 0
-        self.matrix[self.empty_line][self.empty_column] = target_value
-        self.empty_line = target_line
-        self.empty_column = target_column
-
-    def move_up(self):
-        self.move(0, -1)
-
-    def move_down(self):
-        self.move(0, 1)
-
-    def move_left(self):
-        self.move(-1, 0)
-
-    def move_right(self):
-        self.move(1, 0)
-
-    def solve(self):
-        pass
-
-    def play(self):
-        while not self.is_solved:
-            self.print()
-            key = input('Direction ?')
-            try:
-                if key in ['w', 'k', 'up']:
-                    self.move_up()
-                elif key in ['s', 'j', 'down']:
-                    self.move_down()
-                elif key in ['a', 'h', 'left']:
-                    self.move_left()
-                elif key in ['d', 'l', 'right']:
-                    self.move_right()
-                else:
-                    print("Unknown direction")
-            except IndexError:
-                print('This direction is out of bounds')
-
-    def print(self, file: Optional[IO[str]] = None):
-            print('-' * (self.size*4 - 1), file=file)
-            for line in self.matrix:
-                print(*line, sep='\t', file=file)
-            print('-' * (self.size*4 - 1), file=file)
+        new_matrix = self.matrix
+        new_matrix[target_line][target_column] = 0
+        new_matrix[self.empty_line][self.empty_column] = target_value
+        new_empty_line = target_line
+        new_empty_column = target_column
+        return Puzzle(self.size, new_matrix, new_empty_line, new_empty_column, direction, self)
 
     def __str__(self):
-        with StringIO() as f:
-            self.print(file=f)
-            return f.getvalue()
+        string = "----------\n"
+        for line in self.matrix:
+            for value in line:
+                string += str(value) + '\t'
+            string += '\n'
+        string += "----------\n"
+        return string
 
     def cell_is_correct(self, line, column):
-        expected = line*self.size + column + 1
+        expected = line * self.size + column + 1
         return self.matrix[line][column] == expected
+
+    def can_move(self, direction):
+        if direction == self.last_move:
+            return False
+        if direction == UP:
+            return self.empty_line > 0
+        if direction == DOWN:
+            return self.empty_line < self.size - 1
+        if direction == LEFT:
+            return self.empty_column > 0
+        if direction == RIGHT:
+            return self.empty_column < self.size - 1
+
+    @property
+    def successors(self):
+        return [self.move(direction)
+                for direction in [UP, DOWN, LEFT, RIGHT]
+                if self.can_move(direction)]
 
     @property
     def matrix_indices(self):
@@ -103,11 +113,20 @@ class Puzzle:
     def is_solved(self):
         return self.nb_correct == self.nb_values
 
+    @property
+    def path(self):
+        inverted_path = [self]
+        current = self
+        while current.last_state is not None:
+            inverted_path.append(current.last_state)
+            current = current.last_state
+        return reversed(inverted_path)
+
     def manhattan_distance(self, line: int, column: int):
         value = self.matrix[line][column]
-        expected_line, expected_column = divmod(value-1, self.size)
-        v_distance = abs(line-expected_line)
-        h_distance = abs(column-expected_column)
+        expected_line, expected_column = divmod(value - 1, self.size)
+        v_distance = abs(line - expected_line)
+        h_distance = abs(column - expected_column)
         distance = v_distance + h_distance
         return distance
 
@@ -119,6 +138,31 @@ class Puzzle:
         return total
 
 
+def solve(initial_puzzle: Puzzle):
+    queue = Queue()
+
+    print(initial_puzzle)
+
+    if initial_puzzle.is_solved:
+        return [initial_puzzle]
+
+    queue.put(initial_puzzle)
+    while True:
+        try:
+            current_state = queue.get()
+        except Empty:
+            print("Failure. Unsolvable puzzle")
+            return
+
+        for successor in current_state.successors:
+            print(successor)
+            if successor.is_solved:
+                return successor.path
+            queue.put(successor)
+
+
 if __name__ == '__main__':
-    puzzle = Puzzle.from_random(3)
-    puzzle.play()
+    puzzle = Puzzle.from_list(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])
+    solution = solve(puzzle)
+    for state in solution:
+        print(state)
