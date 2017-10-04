@@ -136,7 +136,7 @@ class PuzzleState:
         distance = v_distance + h_distance
         return distance
 
-    def move(self, direction: Tuple(int, int)) -> 'PuzzleState':
+    def move(self, direction: Tuple[int, int]) -> 'PuzzleState':
         dx, dy = direction
         target_line = self.empty_line + dy
         target_column = self.empty_column + dx
@@ -170,9 +170,33 @@ def solve(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
         old_states.add(current_state)
 
 
+def solve_smart(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
+    from sortedcontainers import SortedListWithKey
+
+    if initial_puzzle.is_solved:
+        return [initial_puzzle]
+
+    next_states = SortedListWithKey(key=lambda s: s.total_manhattan_distance)
+    next_states.append(initial_puzzle)
+    old_states = set()
+
+    while True:
+        try:
+            current_state = next_states.pop(0)
+        except IndexError:
+            return None
+
+        for successor in current_state.successors:
+            if successor.is_solved:
+                return successor.path
+            if successor not in old_states:
+                next_states.append(successor)
+        old_states.add(current_state)
+
+
 if __name__ == '__main__':
     puzzle = PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])
-    solution = solve(puzzle)
+    solution = solve_smart(puzzle)
 
     if solution:
         print("Solved in %d steps" % len(solution))
