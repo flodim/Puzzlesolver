@@ -1,4 +1,5 @@
 # /usr/bin/env python3
+from collections import deque
 from queue import Queue, Empty
 from random import shuffle
 from typing import List, Optional, IO
@@ -68,14 +69,25 @@ class Puzzle:
         new_empty_column = target_column
         return Puzzle(self.size, new_matrix, new_empty_line, new_empty_column, direction, self)
 
+    @property
+    def values(self):
+        values = tuple([self.matrix[l][c] for l, c in self.matrix_indices])
+        return tuple(values)
+
     def __str__(self):
         string = "----------\n"
         for line in self.matrix:
             for value in line:
                 string += str(value) + '\t'
             string += '\n'
-        string += "----------\n"
+        string += "----------"
         return string
+
+    def __eq__(self, other):
+        return self.size == other.size and self.__hash__() == other.__hash__()
+
+    def __hash__(self):
+        return hash(self.values)
 
     def cell_is_correct(self, line, column):
         expected = line * self.size + column + 1
@@ -122,7 +134,7 @@ class Puzzle:
         while current.last_state is not None:
             inverted_path.append(current.last_state)
             current = current.last_state
-        return reversed(inverted_path)
+        return list(reversed(inverted_path))
 
     def manhattan_distance(self, line: int, column: int):
         value = self.matrix[line][column]
@@ -141,28 +153,33 @@ class Puzzle:
 
 
 def solve(initial_puzzle: Puzzle):
-    queue = Queue()
-
     if initial_puzzle.is_solved:
         return [initial_puzzle]
 
-    queue.put(initial_puzzle)
+    queue = deque([initial_puzzle])
+    old_states = set()
+
     while True:
         try:
-            current_state = queue.get()
-        except Empty:
-            print("Failure. Unsolvable puzzle")
-            return
+            current_state = queue.pop()
+        except IndexError:
+            return None
 
         for successor in current_state.successors:
-            # print(successor)
             if successor.is_solved:
                 return successor.path
-            queue.put(successor)
+            if successor not in old_states:
+                queue.append(successor)
+        old_states.add(current_state)
 
 
 if __name__ == '__main__':
     puzzle = Puzzle.from_list(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])
     solution = solve(puzzle)
-    for state in solution:
-        print(state)
+
+    if solution:
+        print("Solved in %d steps" % len(solution))
+        for state in solution:
+            print(state)
+    else:
+        print("Unsolvable")
