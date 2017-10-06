@@ -149,7 +149,7 @@ class PuzzleState:
         return PuzzleState(self.size, new_matrix, new_empty_line, new_empty_column, direction, self)
 
 
-def solve(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
+def solve_dumb(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
     if initial_puzzle.is_solved:
         return [initial_puzzle]
 
@@ -190,17 +190,26 @@ def solve_smart(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
             if successor.is_solved:
                 return successor.path
             if successor not in old_states:
-                next_states.append(successor)
+                next_states.add(successor)
         old_states.add(current_state)
 
 
 if __name__ == '__main__':
-    puzzle = PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])
-    solution = solve_smart(puzzle)
+    from timeit import Timer
 
-    if solution:
-        print("Solved in %d steps" % len(solution))
-        for state in solution:
-            print(state)
-    else:
-        print("Unsolvable")
+    setup = 'import puzzlesolver;puzzle = puzzlesolver.PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])'
+
+    dumb_timer = Timer('puzzlesolver.solve_dumb(puzzle)', setup)
+    smart_timer = Timer('puzzlesolver.solve_smart(puzzle)', setup)
+
+    print('smart duration (seconds): ', smart_timer.timeit(5))
+    print('dumb duration (seconds): ', dumb_timer.timeit(5))
+
+    # puzzle = PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])
+    # solution = solve_smart(puzzle)
+    # if solution:
+    #     print("Solved in %d steps" % len(solution))
+    #     for state in solution:
+    #         print(state)
+    # else:
+    #     print("Unsolvable")
