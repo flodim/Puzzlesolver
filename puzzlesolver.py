@@ -3,6 +3,7 @@ from collections import deque
 from copy import deepcopy
 from random import shuffle
 from typing import List, Optional, Iterator, Tuple, Iterable
+from sortedcontainers import SortedListWithKey
 
 UP = (0, -1)
 DOWN = (0, 1)
@@ -26,6 +27,7 @@ class PuzzleState:
         self.empty_column = empty_column
         self.last_move = last_move
         self.last_state = last_state
+
 
     @classmethod
     def from_iterable(cls, size: int, values: Iterable[int]) -> 'PuzzleState':
@@ -62,7 +64,7 @@ class PuzzleState:
     @property
     def successors(self) -> List['PuzzleState']:
         return [self.move(direction)
-                for direction in [UP, DOWN, LEFT, RIGHT]
+                for direction in [RIGHT, LEFT, DOWN, UP]
                 if self.can_move(direction)]
 
     @property
@@ -76,6 +78,10 @@ class PuzzleState:
         correct_cells = sum(1 for l, c in self.matrix_indices
                             if self.cell_is_correct(l, c))
         return correct_cells
+
+    @property
+    def nb_incorrect(self) -> int:
+        return self.nb_values - self.nb_correct
 
     @property
     def is_solved(self) -> bool:
@@ -94,8 +100,7 @@ class PuzzleState:
     def total_manhattan_distance(self) -> int:
         distances = (self.manhattan_distance(l, c)
                      for l, c in self.matrix_indices)
-        total = sum(distances)
-        return total
+        return sum(distances)
 
     def __str__(self) -> str:
         string = "----------\n"
@@ -149,7 +154,7 @@ class PuzzleState:
         return PuzzleState(self.size, new_matrix, new_empty_line, new_empty_column, direction, self)
 
 
-def solve_dumb(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
+def solve_visited_states(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
     if initial_puzzle.is_solved:
         return [initial_puzzle]
 
@@ -170,9 +175,30 @@ def solve_dumb(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
         old_states.add(current_state)
 
 
-def solve_smart(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
-    from sortedcontainers import SortedListWithKey
+def solve_nb_incorrect(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
 
+    if initial_puzzle.is_solved:
+        return [initial_puzzle]
+
+    next_states = SortedListWithKey(key=lambda s: s.nb_incorrect)
+    next_states.append(initial_puzzle)
+    old_states = set()
+
+    while True:
+        try:
+            current_state = next_states.pop(0)
+        except IndexError:
+            return None
+
+        for successor in current_state.successors:
+            if successor.is_solved:
+                return successor.path
+            if successor not in old_states:
+                next_states.add(successor)
+        old_states.add(current_state)
+
+
+def solve_manhattan(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
     if initial_puzzle.is_solved:
         return [initial_puzzle]
 
@@ -194,18 +220,22 @@ def solve_smart(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
         old_states.add(current_state)
 
 
+
 if __name__ == '__main__':
     from timeit import Timer
 
-    setup = 'import puzzlesolver;puzzle = puzzlesolver.PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])'
+    # setup = 'import puzzlesolver;puzzle = puzzlesolver.PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])'
+    setup = 'import puzzlesolver;puzzle = puzzlesolver.PuzzleState.from_iterable(6, [9,4,1,21,12,10,15,11,23,8,25,18,28,7,32,0,17,27,16,13,19,29,35,6,24,20,2,30,5,3,26,22,33,14,31,34])'
 
-    dumb_timer = Timer('puzzlesolver.solve_dumb(puzzle)', setup)
-    smart_timer = Timer('puzzlesolver.solve_smart(puzzle)', setup)
+    # nb_incorrect_timer = Timer('puzzlesolver.solve_nb_incorrect(puzzle)', setup)
+    manhattan_timer = Timer('puzzlesolver.solve_manhattan(puzzle)', setup)
 
-    print('smart duration (seconds): ', smart_timer.timeit(5))
-    print('dumb duration (seconds): ', dumb_timer.timeit(5))
-
-    # puzzle = PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])
+    # print('nb_incorrect duration (seconds): ', nb_incorrect_timer.timeit(1))
+    print('manhattan duration (seconds): ', manhattan_timer.timeit(1))
+    #
+    # puzzle = PuzzleState.from_iterable(3, [5, 4, 0,
+    #                                        6, 1, 8,
+    #                                        7, 3, 2])
     # solution = solve_smart(puzzle)
     # if solution:
     #     print("Solved in %d steps" % len(solution))
