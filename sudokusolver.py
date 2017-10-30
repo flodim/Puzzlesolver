@@ -59,8 +59,35 @@ class Sudoku:
                     possible_values[row][col].append(value)
         return possible_values
 
+    @property
+    def most_constrained_square(self) -> Tuple[int, int]:
+        square = [0, 0]
+        cnt = len(self.possible_values[0][0])
+        for empty_square in self.empty_squares:
+            row = empty_square[0]
+            col = empty_square[1]
+            if len(self.possible_values[row][col]) < cnt:
+                cnt = len(self.possible_values[row][col])
+                square = [row, col]
+        return square
+
     def solve_heuristic(self) -> bool:
-        # TODO: implement this
+        self.nb_recursive_call += 1
+        if len(self.empty_squares) == 0:
+            return True
+        square = self.most_constrained_square
+        row = square[0]
+        col = square[1]
+        values = self.possible_values[row][col]
+        while len(values) != 0:
+            value = values[0]
+            values.remove(value)
+            if self.forward_check(value, row, col):
+                self.matrix[row][col] = value
+                if self.solve_heuristic():
+                    return True
+                else:
+                    self.matrix[row][col] = EMPTY
         return False
 
     def solve_forward_checking(self) -> bool:
@@ -82,7 +109,7 @@ class Sudoku:
                     self.matrix[row][col] = EMPTY
         return False
 
-    def forward_check(self, value: int, cur_row:int, cur_col: int) -> bool:
+    def forward_check(self, value: int, cur_row: int, cur_col: int) -> bool:
         for row in range(self.size):
             if row == cur_row:
                 continue
@@ -97,13 +124,13 @@ class Sudoku:
         self.nb_recursive_call += 1
         if len(self.empty_squares) == 0:
             return True
-        possible_values = list(range(1, 10))
+        values = list(range(1, 10))
         square = self.empty_squares[0]
         row = square[0]
         col = square[1]
-        while len(possible_values) != 0:
-            value = possible_values[0]
-            possible_values.remove(value)
+        while len(values) != 0:
+            value = values[0]
+            values.remove(value)
             if self.check_column(value, row) and \
                     self.check_row(value, col) and \
                     self.check_block(value, square):
@@ -140,18 +167,18 @@ class Sudoku:
         string = ""
         space = "  "
         long_line = "-------------------------------------\n"
-        l = 0
+        ln = 0
         for line in self.matrix:
-            c = 0
-            if l % self.block_size == 0:
+            cl = 0
+            if ln % self.block_size == 0:
                 string += long_line
             for value in line:
-                if c % self.block_size == 0:
+                if cl % self.block_size == 0:
                     string += "|" + space
                 string += str(value) + space if value != EMPTY else '-' + space
-                c += 1
+                cl += 1
             string += '|\n'
-            l += 1
+            ln += 1
         string += long_line
         return string
 
@@ -159,7 +186,13 @@ class Sudoku:
 if __name__ == '__main__':
     s = Sudoku.from_file(9, './sudoku.txt')
     print(s)
-    print("solve forward checking:\n")
+    print("solve backtracking:\n")
+    s.solve_backtracking()
+    print(s)
+    print("solved with " + str(s.nb_recursive_call) + " recursive calls")
+    s = Sudoku.from_file(9, './sudoku.txt')
+    print(s)
+    print("solve forward_checking:\n")
     s.solve_forward_checking()
     print(s)
     print("solved with " + str(s.nb_recursive_call) + " recursive calls")
