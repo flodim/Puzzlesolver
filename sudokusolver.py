@@ -98,7 +98,7 @@ class Sudoku:
         row = square[0]
         col = square[1]
         values = self.possible_values[row][col]
-        while len(values) != 0:
+        while len(values) !=  0:
             value = values[0]
             values.remove(value)
             if self.forward_check(value,row,col):
