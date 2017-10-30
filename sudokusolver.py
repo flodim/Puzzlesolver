@@ -4,6 +4,8 @@ from typing import List, Optional, Iterator, Tuple, Iterable
 
 import math
 
+from random import randint
+
 EMPTY = -1
 
 
@@ -60,30 +62,34 @@ class Sudoku:
         return possible_values
 
     @property
-    def most_constrained_square(self) -> Tuple[int, int]:
-        square = [0, 0]
-        cnt = len(self.possible_values[0][0])
-        for empty_square in self.empty_squares:
-            row = empty_square[0]
-            col = empty_square[1]
-            if len(self.possible_values[row][col]) < cnt:
-                cnt = len(self.possible_values[row][col])
-                square = [row, col]
-        return square
+    def most_constrained_squares(self) -> List[Tuple[int, int]]:
+        squares = {i: [] for i in range(0, self.size + 1)}
+        possible_values = self.possible_values
+        for row, col in self.empty_squares:
+            squares[len(possible_values[row][col])].append((row, col))
+        return [square
+                for i in range(1, self.size + 1)
+                for square in squares[i]]
 
     def solve_heuristic(self) -> bool:
         self.nb_recursive_call += 1
-        if len(self.empty_squares) == 0:
+     #   print(self.nb_recursive_call)
+        nb_empty_squares = len(self.empty_squares)
+        if nb_empty_squares == 0:
             return True
-        square = self.most_constrained_square
-        row = square[0]
-        col = square[1]
-        values = self.possible_values[row][col]
-        while len(values) != 0:
-            value = values[0]
-            values.remove(value)
-            if self.forward_check(value, row, col):
+
+        possible_values = self.possible_values
+        most_constrained_squares = self.most_constrained_squares
+        impossible_values = nb_empty_squares - len(most_constrained_squares)
+
+        if impossible_values != 0:
+            return False
+
+        for row, col in most_constrained_squares:
+            values = possible_values[row][col]
+            for value in values:
                 self.matrix[row][col] = value
+                print(self)
                 if self.solve_heuristic():
                     return True
                 else:
@@ -98,15 +104,14 @@ class Sudoku:
         row = square[0]
         col = square[1]
         values = self.possible_values[row][col]
-        while len(values) !=  0:
+        while len(values) != 0:
             value = values[0]
             values.remove(value)
-            if self.forward_check(value,row,col):
-                self.matrix[row][col] = value
-                if self.solve_forward_checking():
-                    return True
-                else:
-                    self.matrix[row][col] = EMPTY
+            self.matrix[row][col] = value
+            if self.solve_forward_checking():
+                return True
+            else:
+                self.matrix[row][col] = EMPTY
         return False
 
     def forward_check(self, value: int, cur_row: int, cur_col: int) -> bool:
@@ -156,7 +161,6 @@ class Sudoku:
     def check_block(self, value: int, square: Tuple[int, int]) -> bool:
         row = square[0] - (square[0] % self.block_size)
         col = square[1] - (square[1] % self.block_size)
-
         for i in range(row, row + self.block_size):
             for j in range(col, col + self.block_size):
                 if self.matrix[i][j] == value:
@@ -184,15 +188,15 @@ class Sudoku:
 
 
 if __name__ == '__main__':
+    # s = Sudoku.from_file(9, './sudoku.txt')
+    # print(s)
+    # print("solve backtracking:\n")
+    # s.solve_backtracking()
+    # print(s)
+    # print("solved with " + str(s.nb_recursive_call) + " recursive calls")
     s = Sudoku.from_file(9, './sudoku.txt')
     print(s)
-    print("solve backtracking:\n")
-    s.solve_backtracking()
-    print(s)
-    print("solved with " + str(s.nb_recursive_call) + " recursive calls")
-    s = Sudoku.from_file(9, './sudoku.txt')
-    print(s)
-    print("solve forward_checking:\n")
-    s.solve_forward_checking()
+    print("solve heuristic:\n")
+    s.solve_heuristic()
     print(s)
     print("solved with " + str(s.nb_recursive_call) + " recursive calls")
