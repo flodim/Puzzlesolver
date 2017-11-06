@@ -54,7 +54,7 @@ class Sudoku:
         for empty_square in self.empty_squares:
             row = empty_square[0]
             col = empty_square[1]
-            for value in range(1, 10):
+            for value in range(1, self.size+1):
                 if self.check_row(value, col) and \
                         self.check_column(value, row) and \
                         self.check_block(value, (row, col)):
@@ -73,27 +73,29 @@ class Sudoku:
 
     def solve_heuristic(self) -> bool:
         self.nb_recursive_call += 1
-     #   print(self.nb_recursive_call)
         nb_empty_squares = len(self.empty_squares)
         if nb_empty_squares == 0:
             return True
 
         possible_values = self.possible_values
         most_constrained_squares = self.most_constrained_squares
-        impossible_values = nb_empty_squares - len(most_constrained_squares)
 
-        if impossible_values != 0:
-            return False
+        #impossible_values = nb_empty_squares - len(most_constrained_squares)
+        #if impossible_values != 0:
+        #    return False
 
         for row, col in most_constrained_squares:
             values = possible_values[row][col]
             for value in values:
                 self.matrix[row][col] = value
-                print(self)
+                # print(self)
+             #   print(" "+"matrix["+str(row)+"]["+str(col)+"]="+str(value) + " " + str(values))
+
                 if self.solve_heuristic():
                     return True
                 else:
                     self.matrix[row][col] = EMPTY
+            return False
         return False
 
     def solve_forward_checking(self) -> bool:
@@ -129,7 +131,7 @@ class Sudoku:
         self.nb_recursive_call += 1
         if len(self.empty_squares) == 0:
             return True
-        values = list(range(1, 10))
+        values = list(range(1, self.size+1))
         square = self.empty_squares[0]
         row = square[0]
         col = square[1]
@@ -194,8 +196,14 @@ if __name__ == '__main__':
     # s.solve_backtracking()
     # print(s)
     # print("solved with " + str(s.nb_recursive_call) + " recursive calls")
-    s = Sudoku.from_file(9, './sudoku.txt')
+    file = "./sudoku.txt"
+    s = Sudoku.from_file(9, file)
     print(s)
+    print("solve backtracking:\n")
+    s.solve_backtracking()
+    print(s)
+    print("solved with " + str(s.nb_recursive_call) + " recursive calls")
+    s = Sudoku.from_file(9, file)
     print("solve heuristic:\n")
     s.solve_heuristic()
     print(s)
