@@ -80,22 +80,18 @@ class Sudoku:
         possible_values = self.possible_values
         most_constrained_squares = self.most_constrained_squares
 
-        #impossible_values = nb_empty_squares - len(most_constrained_squares)
-        #if impossible_values != 0:
-        #    return False
-
-        for row, col in most_constrained_squares:
-            values = possible_values[row][col]
-            for value in values:
-                self.matrix[row][col] = value
-                # print(self)
-             #   print(" "+"matrix["+str(row)+"]["+str(col)+"]="+str(value) + " " + str(values))
-
-                if self.solve_heuristic():
-                    return True
-                else:
-                    self.matrix[row][col] = EMPTY
+        impossible_values = nb_empty_squares - len(most_constrained_squares)
+        if impossible_values != 0:
             return False
+
+        row, col = most_constrained_squares[0]
+        values = possible_values[row][col]
+        for value in values:
+            self.matrix[row][col] = value
+            if self.solve_heuristic():
+                return True
+            else:
+                self.matrix[row][col] = EMPTY
         return False
 
     def solve_forward_checking(self) -> bool:
