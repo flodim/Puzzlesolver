@@ -1,5 +1,6 @@
 # /usr/bin/env python3
-
+from time import *
+from timeit import Timer
 from typing import List, Tuple
 
 import math
@@ -164,9 +165,6 @@ class Sudoku:
                     return False
         return True
 
-    def print_statistics(self) :
-        print("solved with a total of " + str(self.nb_recursive_call) + " recursive calls and "
-              + str(self.nb_assignment_before_backtracking) + " assignment before first backtracking")
 
     def __str__(self) -> str:
         string = ""
@@ -188,19 +186,31 @@ class Sudoku:
         return string
 
 
+def print_statistics(nb_recursive_call: int, nb_assignment_before_backtracking: int, execution_time: float):
+    print("solved with a total of " + str(nb_recursive_call) + " recursive calls and "
+          + str(nb_assignment_before_backtracking) + " assignment before first backtracking \n"
+          + "this operation take " + str(execution_time) + " seconds.\n"
+          )
+
 if __name__ == '__main__':
     file = "./sudoku.txt"
     size = 9
+
     s = Sudoku.from_file(size, file)
     print("Unsolved sudoku:")
     print(s)
     print("=========== solve backtracking ===========\n")
+    t0 = perf_counter()
     s.solve_backtracking()
+    t1 = perf_counter()
     print(s)
-    s.print_statistics()
+    print_statistics(s.nb_recursive_call,s.nb_assignment_before_backtracking, t1-t0)
+
     s = Sudoku.from_file(size, file)
     print("=========== solve heuristic ===========\n")
     print("first most constrained square: " + str(s.most_constrained_square))
+    t0 = perf_counter()
     s.solve_heuristic()
+    t1 = perf_counter()
     print(s)
-    s.print_statistics()
+    print_statistics(s.nb_recursive_call, s.nb_assignment_before_backtracking, t1 - t0)
