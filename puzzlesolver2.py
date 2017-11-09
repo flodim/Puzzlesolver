@@ -1,5 +1,16 @@
 from collections import deque
 from typing import Tuple, Iterable, List, Reversible, Iterator
+from sys import stdin
+from io import StringIO
+
+
+def int_sqrt(number: int):
+    for i in range(number):
+        if i*i == number:
+            return i
+        if i*i > number:
+            return None
+    return None
 
 
 class PuzzleState:
@@ -9,8 +20,22 @@ class PuzzleState:
     def __init__(self, pieces: Tuple, size: int, parent: 'PuzzleState'=None):
         self.pieces = pieces
         self.size = size
-        self.history = deque()
         self.parent = parent
+
+    @classmethod
+    def from_string(cls, pieces_str: str, parent: 'PuzzleState'=None) -> 'PuzzleState':
+        pieces = tuple(map(int, pieces_str.split()))
+        size = int_sqrt(len(pieces))
+
+        if size is None:
+            raise Exception("Invalid number of pieces (%d)" % len(pieces))
+
+        return cls(pieces, size, parent)
+
+    @classmethod
+    def from_input(cls, file=stdin, parent=None):
+        pieces_str = file.read()
+        cls.from_string(pieces_str, parent)
 
     def is_solved(self) -> bool:
         if self.pieces[-1] != self.EMPTY:
@@ -57,7 +82,20 @@ class PuzzleState:
             parent = parent.parent
 
     def history(self) -> Iterable['PuzzleState']:
-        return reversed(list(self.parents()))
+        yield from reversed(list(self.parents()))
+        yield self
+
+    def __str__(self):
+        with StringIO() as string:
+            for i in range(0, len(self.pieces), self.size):
+                print(*self.pieces[i:i+self.size], sep="\t", file=string)
+            return string.getvalue()
+
+    def __hash__(self):
+        return self.pieces.__hash__()
+
+    def __eq__(self, other):
+        return self.pieces.__eq__(other.pieces)
 
 
 class PuzzleSolverBase:
@@ -87,7 +125,7 @@ class PuzzleSolverBase:
             visited_states.add(state)
 
             if state.is_solved():
-                return state.successors()
+                return state.history()
 
             successors = (s for s in state.successors()
                           if s not in visited_states)
@@ -96,11 +134,27 @@ class PuzzleSolverBase:
                 cls.add_next_state(next_states, successor)
                 visited_states.add(successor)
 
+            # print("next states: %s" % len(next_states))
+            # print("visited states: %s" % len(visited_states))
+            # print("current depth: %s" % len(list(state.parents())))
+            # print(state)
+
 
 if __name__ == '__main__':
+
     puzzle_easy = PuzzleState((5, 4, 0,
                                6, 1, 8,
                                7, 3, 2), 3)
 
-    print(PuzzleSolverBase.solve(puzzle_easy))
+    puzzle_solved = PuzzleState((1, 2, 3, 4, 5, 6, 7, 8, 0), 3)
+    puzzle_solved2 = PuzzleState((1, 2, 3, 4, 5, 6, 7, 8, 0), 3)
+
+    solution = PuzzleSolverBase.solve(puzzle_easy)
+
+    if solution:
+        for i, state in enumerate(solution):
+            print("Step %d:" % i)
+            print(state)
+    else:
+        print("No solution found")
 
