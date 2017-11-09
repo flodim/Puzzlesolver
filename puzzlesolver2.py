@@ -1,7 +1,10 @@
+from abc import ABC, abstractstaticmethod, abstractmethod
 from collections import deque
+from time import time
 from typing import Tuple, Iterable, List, Reversible, Iterator
 from sys import stdin
 from io import StringIO
+import heapq
 
 
 def int_sqrt(number: int):
@@ -85,6 +88,14 @@ class PuzzleState:
         yield from reversed(list(self.parents()))
         yield self
 
+    def count_incorrect(self) -> int:
+        nb_incorrect = 0
+        last_i = len(self.pieces) - 1
+        for i, piece in enumerate(self.pieces):
+            if piece != i+1 or (piece == 0 and i != last_i):
+                nb_incorrect += 1
+        return nb_incorrect
+
     def __str__(self):
         with StringIO() as string:
             for i in range(0, len(self.pieces), self.size):
@@ -98,30 +109,31 @@ class PuzzleState:
         return self.pieces.__eq__(other.pieces)
 
 
-class PuzzleSolverBase:
+class PuzzleSolver:
 
-    @staticmethod
-    def init_next_states(initial_state: PuzzleState):
-        return deque([initial_state])
+    def init_next_states(self, initial_state: PuzzleState) -> List[PuzzleState]:
+        return [initial_state]
 
-    @staticmethod
-    def iter_next_states(next_states) -> Iterator[PuzzleState]:
+    def pop_state(self, next_states: List) -> PuzzleState:
+        return next_states.pop()
+
+    def add_next_state(self, next_states: List, state: PuzzleState):
+        next_states.append(state)
+
+    def iter_next_states(self, next_states) -> Iterable[PuzzleState]:
         while True:
             try:
-                yield next_states.popleft()
+                yield self.pop_state(next_states)
             except IndexError:
                 break
 
-    @staticmethod
-    def add_next_state(next_states, state: PuzzleState):
-        next_states.append(state)
+    def clean(self):
+        pass
 
-    @classmethod
-    def solve(cls, initial_state: PuzzleState) -> Iterable[PuzzleState]:
-
-        next_states = cls.init_next_states(initial_state)
+    def solve(self, initial_state: PuzzleState) -> Iterable[PuzzleState]:
+        next_states = self.init_next_states(initial_state)
         visited_states = set()
-        for state in cls.iter_next_states(next_states):
+        for state in self.iter_next_states(next_states):
             visited_states.add(state)
 
             if state.is_solved():
@@ -131,30 +143,61 @@ class PuzzleSolverBase:
                           if s not in visited_states)
 
             for successor in successors:
-                cls.add_next_state(next_states, successor)
+                self.add_next_state(next_states, successor)
                 visited_states.add(successor)
-
-            # print("next states: %s" % len(next_states))
-            # print("visited states: %s" % len(visited_states))
-            # print("current depth: %s" % len(list(state.parents())))
-            # print(state)
+        self.clean()
 
 
-if __name__ == '__main__':
+class PuzzleSolverCountCorrect(PuzzleSolver):
 
+    def __init__(self):
+        self.push_count = 0
+
+    def init_next_states(self, initial_state: PuzzleState) -> List[Tuple[int, int, PuzzleState]]:
+        next_states = [(initial_state.count_incorrect(), self.push_count, initial_state)]
+        heapq.heapify(next_states)
+        self.push_count = 1
+        return next_states
+
+    def pop_state(self, next_states: List[Tuple[int, int, PuzzleState]]) -> PuzzleState:
+        return heapq.heappop(next_states)[2]
+
+    def add_next_state(self, next_states: List[Tuple[int, int, PuzzleState]], state: PuzzleState):
+        heapq.heappush(next_states, (state.count_incorrect(), self.push_count, state))
+        self.push_count += 1
+
+    def clean(self):
+        self.push_count = 0
+
+
+def test_solver(solver: PuzzleSolver):
     puzzle_easy = PuzzleState((5, 4, 0,
                                6, 1, 8,
                                7, 3, 2), 3)
 
-    puzzle_solved = PuzzleState((1, 2, 3, 4, 5, 6, 7, 8, 0), 3)
-    puzzle_solved2 = PuzzleState((1, 2, 3, 4, 5, 6, 7, 8, 0), 3)
+    start_time = time()
+    solution = solver.solve(puzzle_easy)
+    end_time = time()
 
-    solution = PuzzleSolverBase.solve(puzzle_easy)
+    print("Solver: %s" % solver.__class__.__name__)
+    print("Steps: %s" % len(list(solution)) if solution else "not solved")
+    print("Duration: %s" % (end_time - start_time))
+    print()
 
-    if solution:
-        for i, state in enumerate(solution):
-            print("Step %d:" % i)
-            print(state)
-    else:
-        print("No solution found")
 
+def get_solvers() -> Iterable[PuzzleSolver]:
+    for obj in globals().values():
+        try:
+            if issubclass(obj, PuzzleSolver):
+                yield obj()
+        except TypeError:
+            pass
+
+
+def test_solvers(*solvers: PuzzleSolver):
+    for solver in solvers:
+        test_solver(solver)
+
+
+if __name__ == '__main__':
+    test_solvers(*get_solvers())
