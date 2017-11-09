@@ -1,245 +1,222 @@
-# /usr/bin/env python3
+from abc import ABC, abstractstaticmethod, abstractmethod
 from collections import deque
-from copy import deepcopy
-from random import shuffle
-from typing import List, Optional, Iterator, Tuple, Iterable
-from sortedcontainers import SortedListWithKey
+from time import time
+from typing import Tuple, Iterable, List, Reversible, Iterator
+from sys import stdin
+from io import StringIO
+import heapq
 
-UP = (0, -1)
-DOWN = (0, 1)
-LEFT = (-1, 0)
-RIGHT = (1, 0)
+
+def int_sqrt(number: int):
+    for i in range(number):
+        if i*i == number:
+            return i
+        if i*i > number:
+            return None
+    return None
 
 
 class PuzzleState:
-    def __init__(
-            self, size: int,
-            matrix: List[List[int]],
-            empty_line: int,
-            empty_column: int,
-            last_move=None,
-            last_state=None):
 
+    EMPTY = 0
+
+    def __init__(self, pieces: Tuple, size: int, parent: 'PuzzleState'=None):
+        self.pieces = pieces
         self.size = size
-        self.nb_values = size * size - 1
-        self.matrix = matrix
-        self.empty_line = empty_line
-        self.empty_column = empty_column
-        self.last_move = last_move
-        self.last_state = last_state
-
+        self.parent = parent
 
     @classmethod
-    def from_iterable(cls, size: int, values: Iterable[int]) -> 'PuzzleState':
-        empty_line = None
-        empty_column = None
-        matrix = [[-1] * size for _ in range(size)]
-        for index, value in enumerate(values):
-            line, column = divmod(index, size)
-            matrix[line][column] = value
-            if value == 0:
-                empty_line = line
-                empty_column = column
-        return cls(size, matrix, empty_line, empty_column)
+    def from_string(cls, pieces_str: str, parent: 'PuzzleState'=None) -> 'PuzzleState':
+        pieces = tuple(map(int, pieces_str.split()))
+        size = int_sqrt(len(pieces))
+
+        if size is None:
+            raise Exception("Invalid number of pieces (%d)" % len(pieces))
+
+        return cls(pieces, size, parent)
 
     @classmethod
-    def from_random(cls, size: int) -> 'PuzzleState':
-        values = list(range(size * size))
-        shuffle(values)
-        return cls.from_iterable(size, values)
+    def from_input(cls, file=stdin, parent=None):
+        pieces_str = file.read()
+        cls.from_string(pieces_str, parent)
 
-    @classmethod
-    def from_keyboard(cls) -> 'PuzzleState':
-        size = int(input('enter matrix size: '))
-        values = list(range(size))
-        for i in range(0, size * size):
-            values[i] = int(input("enter value " + str(i) + ": "))
-        return cls.from_iterable(size, values)
-
-    @property
-    def values(self) -> Tuple:
-        values = tuple([self.matrix[l][c] for l, c in self.matrix_indices])
-        return tuple(values)
-
-    @property
-    def successors(self) -> List['PuzzleState']:
-        return [self.move(direction)
-                for direction in [RIGHT, LEFT, DOWN, UP]
-                if self.can_move(direction)]
-
-    @property
-    def matrix_indices(self) -> Iterator[Tuple[int, int]]:
-        return ((line, column)
-                for line in range(self.size)
-                for column in range(self.size))
-
-    @property
-    def nb_correct(self) -> int:
-        correct_cells = sum(1 for l, c in self.matrix_indices
-                            if self.cell_is_correct(l, c))
-        return correct_cells
-
-    @property
-    def nb_incorrect(self) -> int:
-        return self.nb_values - self.nb_correct
-
-    @property
     def is_solved(self) -> bool:
-        return self.nb_correct == self.nb_values
-
-    @property
-    def path(self) -> List['PuzzleState']:
-        inverted_path = [self]
-        current = self
-        while current.last_state is not None:
-            inverted_path.append(current.last_state)
-            current = current.last_state
-        return list(reversed(inverted_path))
-
-    @property
-    def total_manhattan_distance(self) -> int:
-        distances = (self.manhattan_distance(l, c)
-                     for l, c in self.matrix_indices)
-        return sum(distances)
-
-    def __str__(self) -> str:
-        string = "----------\n"
-        for line in self.matrix:
-            for value in line:
-                string += str(value) + '\t'
-            string += '\n'
-        string += "----------"
-        return string
-
-    def __eq__(self, other: 'PuzzleState') -> bool:
-        return self.size == other.size and self.__hash__() == other.__hash__()
-
-    def __hash__(self) -> int:
-        return hash(self.values)
-
-    def cell_is_correct(self, line: int, column: int) -> bool:
-        expected = line * self.size + column + 1
-        return self.matrix[line][column] == expected
-
-    def can_move(self, direction: Tuple[int, int]) -> bool:
-        if direction == self.last_move:
+        if self.pieces[-1] != self.EMPTY:
             return False
-        if direction == UP:
-            return self.empty_line > 0
-        if direction == DOWN:
-            return self.empty_line < self.size - 1
-        if direction == LEFT:
-            return self.empty_column > 0
-        if direction == RIGHT:
-            return self.empty_column < self.size - 1
+        for index, value in enumerate(self.pieces[:-2]):
+            if value > self.pieces[index + 1]:
+                return False
+        return True
 
-    def manhattan_distance(self, line: int, column: int) -> int:
-        value = self.matrix[line][column]
-        expected_line, expected_column = divmod(value - 1, self.size)
-        v_distance = abs(line - expected_line)
-        h_distance = abs(column - expected_column)
-        distance = v_distance + h_distance
+    def empty_index(self) -> int:
+        for index, value in enumerate(self.pieces):
+            if value == self.EMPTY:
+                return index
+        raise Exception("Cannot find empty index.")
+
+    def swap(self, index1: int, index2: int) -> 'PuzzleState':
+        state_as_list = list(self.pieces)
+        state_as_list[index1], state_as_list[index2] = state_as_list[index2], state_as_list[index1]
+        return PuzzleState(tuple(state_as_list), self.size, self)
+
+    def successors(self) -> Iterable['PuzzleState']:
+        empty_index = self.empty_index()
+
+        up_index = empty_index - self.size
+        if up_index >= 0:
+            yield self.swap(empty_index, up_index)
+
+        down_index = empty_index + self.size
+        if down_index < self.size * self.size:
+            yield self.swap(empty_index, down_index)
+
+        if empty_index % self.size != 0:
+            left_index = empty_index - 1
+            yield self.swap(empty_index, left_index)
+
+        right_index = empty_index + 1
+        if right_index % self.size != 0:
+            yield self.swap(empty_index, right_index)
+
+    def parents(self) -> Iterable['PuzzleState']:
+        parent = self.parent
+        while parent is not None:
+            yield parent
+            parent = parent.parent
+
+    def history(self) -> Iterable['PuzzleState']:
+        yield from reversed(list(self.parents()))
+        yield self
+
+    def count_incorrect(self) -> int:
+        nb_incorrect = 0
+        last_i = len(self.pieces) - 1
+        for i, piece in enumerate(self.pieces):
+            if piece != i+1 or (piece == 0 and i != last_i):
+                nb_incorrect += 1
+        return nb_incorrect
+
+    def manhattan(self) -> int:
+        distance = 0
+
+        for i, piece in enumerate(self.pieces):
+            col = i % self.size
+            row = i // self.size
+            if piece == 0:
+                expected_col = self.size - 1
+                expected_row = expected_col
+            else:
+                expected_col = piece-1 % self.size
+                expected_row = piece-1 // self.size
+
+            distance += abs(col-expected_col) + abs(row-expected_row)
         return distance
 
-    def move(self, direction: Tuple[int, int]) -> 'PuzzleState':
-        dx, dy = direction
-        target_line = self.empty_line + dy
-        target_column = self.empty_column + dx
-        target_value = self.matrix[target_line][target_column]
-        new_matrix = deepcopy(self.matrix)
-        new_matrix[target_line][target_column] = 0
-        new_matrix[self.empty_line][self.empty_column] = target_value
-        new_empty_line = target_line
-        new_empty_column = target_column
-        return PuzzleState(self.size, new_matrix, new_empty_line, new_empty_column, direction, self)
+    def __str__(self):
+        with StringIO() as string:
+            for i in range(0, len(self.pieces), self.size):
+                print(*self.pieces[i:i+self.size], sep="\t", file=string)
+            return string.getvalue()
+
+    def __hash__(self):
+        return self.pieces.__hash__()
+
+    def __eq__(self, other):
+        return self.pieces.__eq__(other.pieces)
 
 
-def solve_visited_states(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
-    if initial_puzzle.is_solved:
-        return [initial_puzzle]
+class PuzzleSolver:
 
-    queue = deque([initial_puzzle])
-    old_states = set()
+    def init_next_states(self, initial_state: PuzzleState) -> List[PuzzleState]:
+        return [initial_state]
 
-    while True:
-        try:
-            current_state = queue.pop()
-        except IndexError:
-            return None
+    def pop_state(self, next_states: List) -> PuzzleState:
+        return next_states.pop()
 
-        for successor in current_state.successors:
-            if successor.is_solved:
-                return successor.path
-            if successor not in old_states:
-                queue.append(successor)
-        old_states.add(current_state)
+    def add_next_state(self, next_states: List, state: PuzzleState):
+        next_states.append(state)
 
+    def iter_next_states(self, next_states) -> Iterable[PuzzleState]:
+        while True:
+            try:
+                yield self.pop_state(next_states)
+            except IndexError:
+                break
 
-def solve_nb_incorrect(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
+    def clean(self):
+        pass
 
-    if initial_puzzle.is_solved:
-        return [initial_puzzle]
+    def solve(self, initial_state: PuzzleState) -> Iterable[PuzzleState]:
+        next_states = self.init_next_states(initial_state)
+        visited_states = set()
+        for state in self.iter_next_states(next_states):
+            visited_states.add(state)
 
-    next_states = SortedListWithKey(key=lambda s: s.nb_incorrect)
-    next_states.append(initial_puzzle)
-    old_states = set()
+            if state.is_solved():
+                return state.history()
 
-    while True:
-        try:
-            current_state = next_states.pop(0)
-        except IndexError:
-            return None
+            successors = (s for s in state.successors()
+                          if s not in visited_states)
 
-        for successor in current_state.successors:
-            if successor.is_solved:
-                return successor.path
-            if successor not in old_states:
-                next_states.add(successor)
-        old_states.add(current_state)
+            for successor in successors:
+                self.add_next_state(next_states, successor)
+                visited_states.add(successor)
+        self.clean()
 
 
-def solve_manhattan(initial_puzzle: PuzzleState) -> Optional[List[PuzzleState]]:
-    if initial_puzzle.is_solved:
-        return [initial_puzzle]
+class PuzzleSolverCountCorrect(PuzzleSolver):
 
-    next_states = SortedListWithKey(key=lambda s: s.total_manhattan_distance)
-    next_states.append(initial_puzzle)
-    old_states = set()
+    def __init__(self):
+        self.push_count = 0
 
-    while True:
-        try:
-            current_state = next_states.pop(0)
-        except IndexError:
-            return None
+    def get_state_weight(self, state: PuzzleState) -> int:
+        return state.count_incorrect()
 
-        for successor in current_state.successors:
-            if successor.is_solved:
-                return successor.path
-            if successor not in old_states:
-                next_states.add(successor)
-        old_states.add(current_state)
+    def init_next_states(self, initial_state: PuzzleState) -> List[Tuple[int, int, PuzzleState]]:
+        next_states = [(self.get_state_weight(initial_state), self.push_count, initial_state)]
+        heapq.heapify(next_states)
+        self.push_count = 1
+        return next_states
 
+    def pop_state(self, next_states: List[Tuple[int, int, PuzzleState]]) -> PuzzleState:
+        return heapq.heappop(next_states)[2]
+
+    def add_next_state(self, next_states: List[Tuple[int, int, PuzzleState]], state: PuzzleState):
+        heapq.heappush(next_states, (self.get_state_weight(state), self.push_count, state))
+        self.push_count += 1
+
+    def clean(self):
+        self.push_count = 0
+
+
+class PuzzleSolverManhattan(PuzzleSolverCountCorrect):
+    def get_state_weight(self, state: PuzzleState):
+        return state.manhattan()
+
+
+def test_solver(solver: PuzzleSolver):
+    puzzle = PuzzleState((5, 4, 0,
+                          6, 1, 8,
+                          7, 3, 2), 3)
+
+    start_time = time()
+    solution = solver.solve(puzzle)
+    end_time = time()
+
+    print("Solver: %s" % solver.__class__.__name__)
+    print("Steps: %s" % len(list(solution)) if solution else "not solved")
+    print("Duration: %s" % (end_time - start_time))
+    print()
+
+
+def test_solvers(*solvers: PuzzleSolver):
+    for solver in solvers:
+        test_solver(solver)
 
 
 if __name__ == '__main__':
-    from timeit import Timer
-
-    # setup = 'import puzzlesolver;puzzle = puzzlesolver.PuzzleState.from_iterable(3, [5, 4, 0, 6, 1, 8, 7, 3, 2])'
-    setup = 'import puzzlesolver;puzzle = puzzlesolver.PuzzleState.from_iterable(6, [9,4,1,21,12,10,15,11,23,8,25,18,28,7,32,0,17,27,16,13,19,29,35,6,24,20,2,30,5,3,26,22,33,14,31,34])'
-
-    # nb_incorrect_timer = Timer('puzzlesolver.solve_nb_incorrect(puzzle)', setup)
-    manhattan_timer = Timer('puzzlesolver.solve_manhattan(puzzle)', setup)
-
-    # print('nb_incorrect duration (seconds): ', nb_incorrect_timer.timeit(1))
-    print('manhattan duration (seconds): ', manhattan_timer.timeit(1))
-    #
-    # puzzle = PuzzleState.from_iterable(3, [5, 4, 0,
-    #                                        6, 1, 8,
-    #                                        7, 3, 2])
-    # solution = solve_smart(puzzle)
-    # if solution:
-    #     print("Solved in %d steps" % len(solution))
-    #     for state in solution:
-    #         print(state)
-    # else:
-    #     print("Unsolvable")
+    test_solvers(
+        PuzzleSolver(),
+        PuzzleSolverCountCorrect(),
+        PuzzleSolverManhattan()
+    )
