@@ -62,17 +62,17 @@ class PuzzleState:
     def successors(self) -> Iterable['PuzzleState']:
         empty_index = self.empty_index()
 
-        up_index = empty_index - self.size
-        if up_index >= 0:
-            yield self.swap(empty_index, up_index)
+        if empty_index % self.size != 0:
+            left_index = empty_index - 1
+            yield self.swap(empty_index, left_index)
 
         down_index = empty_index + self.size
         if down_index < self.size * self.size:
             yield self.swap(empty_index, down_index)
 
-        if empty_index % self.size != 0:
-            left_index = empty_index - 1
-            yield self.swap(empty_index, left_index)
+        up_index = empty_index - self.size
+        if up_index >= 0:
+            yield self.swap(empty_index, up_index)
 
         right_index = empty_index + 1
         if right_index % self.size != 0:
@@ -100,14 +100,11 @@ class PuzzleState:
         distance = 0
 
         for i, piece in enumerate(self.pieces):
-            col = i % self.size
-            row = i // self.size
+            row, col = divmod(i, self.size)
             if piece == 0:
-                expected_col = self.size - 1
-                expected_row = expected_col
+                expected_row = expected_col = self.size - 1
             else:
-                expected_col = piece-1 % self.size
-                expected_row = piece-1 // self.size
+                expected_row, expected_col = divmod(piece-1, self.size)
 
             distance += abs(col-expected_col) + abs(row-expected_row)
         return distance
@@ -149,7 +146,7 @@ class PuzzleSolver:
     def solve(self, initial_state: PuzzleState) -> Iterable[PuzzleState]:
         next_states = self.init_next_states(initial_state)
         visited_states = set()
-        for state in self.iter_next_states(next_states):
+        for state in (self.iter_next_states(next_states)):
             visited_states.add(state)
 
             if state.is_solved():
@@ -194,29 +191,42 @@ class PuzzleSolverManhattan(PuzzleSolverCountCorrect):
         return state.manhattan()
 
 
-def test_solver(solver: PuzzleSolver):
-    puzzle = PuzzleState((5, 4, 0,
-                          6, 1, 8,
-                          7, 3, 2), 3)
+def test_solver(solver: PuzzleSolver, puzzle: PuzzleState):
 
     start_time = time()
     solution = solver.solve(puzzle)
     end_time = time()
 
     print("Solver: %s" % solver.__class__.__name__)
-    print("Steps: %s" % len(list(solution)) if solution else "not solved")
+    print("Size: %s" % puzzle.size)
+    print("Solution steps: %s" % len(list(solution)) if solution else "not solved")
     print("Duration: %s" % (end_time - start_time))
     print()
 
 
 def test_solvers(*solvers: PuzzleSolver):
-    for solver in solvers:
-        test_solver(solver)
+
+    puzzles = (
+        PuzzleState((5, 4, 0,
+                     6, 1, 8,
+                     7, 3, 2), 3),
+
+        PuzzleState((9,  4,  1,  21, 12, 10,
+                     15, 11, 23, 8,  25, 18,
+                     28, 7,  32, 0,  17, 27,
+                     16, 13, 19, 29, 35, 6,
+                     24, 20, 2,  30, 5,  3,
+                     26, 22, 33, 14, 31, 34), 6)
+    )
+
+    for puzzle in puzzles:
+        for solver in solvers:
+            test_solver(solver, puzzle)
 
 
 if __name__ == '__main__':
     test_solvers(
-        PuzzleSolver(),
         PuzzleSolverCountCorrect(),
-        PuzzleSolverManhattan()
+        PuzzleSolverManhattan(),
+        PuzzleSolver(),
     )
