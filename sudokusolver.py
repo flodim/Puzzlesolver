@@ -57,7 +57,7 @@ class Sudoku:
         for empty_square in self.empty_squares:
             row = empty_square[0]
             col = empty_square[1]
-            for value in range(1, self.size+1):
+            for value in range(1, self.size + 1):
                 if self.check_row(value, col) and \
                         self.check_column(value, row) and \
                         self.check_block(value, (row, col)):
@@ -75,7 +75,7 @@ class Sudoku:
                 for square in squares[i]]
 
     @property
-    def most_constrained_square(self)-> Tuple[int, int]:
+    def most_constrained_square(self) -> Tuple[int, int]:
         return self.most_constrained_squares[0]
 
     def solve_heuristic(self) -> bool:
@@ -86,6 +86,7 @@ class Sudoku:
         possible_values = self.possible_values
         most_constrained_squares = self.most_constrained_squares
 
+        # check that the sudoku is always solvable
         impossible_values = nb_empty_squares - len(most_constrained_squares)
         if impossible_values != 0:
             return False
@@ -124,7 +125,7 @@ class Sudoku:
         self.nb_recursive_call += 1
         if len(self.empty_squares) == 0:
             return True
-        values = list(range(1, self.size+1))
+        values = list(range(1, self.size + 1))
         square = self.empty_squares[0]
         row = square[0]
         col = square[1]
@@ -165,11 +166,13 @@ class Sudoku:
                     return False
         return True
 
-
     def __str__(self) -> str:
         string = ""
         space = "  "
-        long_line = "-------------------------------------\n"
+        long_line=""
+        for x in range((self.block_size*4+3)*self.block_size +1):
+            long_line += "-"
+        long_line += "\n"
         ln = 0
         for line in self.matrix:
             cl = 0
@@ -178,7 +181,13 @@ class Sudoku:
             for value in line:
                 if cl % self.block_size == 0:
                     string += "|" + space
-                string += str(value) + space if value != EMPTY else '-' + space
+                if value != EMPTY:
+                    if value < 10:
+                        string += '0' + str(value) + space
+                    else:
+                        string += str(value) + space
+                else:
+                    string += '--' + space
                 cl += 1
             string += '|\n'
             ln += 1
@@ -186,11 +195,15 @@ class Sudoku:
         return string
 
 
-def print_statistics(nb_recursive_call: int, nb_assignment_before_backtracking: int, execution_time: float):
-    print("solved with a total of " + str(nb_recursive_call) + " recursive calls and "
-          + str(nb_assignment_before_backtracking) + " assignment before first backtracking \n"
-          + "this operation take " + str(execution_time) + " seconds.\n"
-          )
+def print_statistics(result: bool, nb_recursive_call: int, nb_assignment_before_backtracking: int, execution_time: float):
+    if result:
+        print("solved with a total of " + str(nb_recursive_call) + " recursive calls and "
+              + str(nb_assignment_before_backtracking) + " assignment before first backtracking \n"
+              + "this operation take " + str(execution_time) + " seconds.\n"
+              )
+    else:
+        print("unsolvable\n")
+
 
 if __name__ == '__main__':
     file = "./sudoku.txt"
@@ -201,16 +214,15 @@ if __name__ == '__main__':
     print(s)
     print("=========== solve backtracking ===========\n")
     t0 = perf_counter()
-    s.solve_backtracking()
+    result = s.solve_backtracking()
     t1 = perf_counter()
-    print(s)
-    print_statistics(s.nb_recursive_call,s.nb_assignment_before_backtracking, t1-t0)
+    print_statistics(result, s.nb_recursive_call, s.nb_assignment_before_backtracking, t1 - t0)
 
     s = Sudoku.from_file(size, file)
     print("=========== solve heuristic ===========\n")
     print("first most constrained square: " + str(s.most_constrained_square))
     t0 = perf_counter()
-    s.solve_heuristic()
+    result = s.solve_heuristic()
     t1 = perf_counter()
-    print(s)
-    print_statistics(s.nb_recursive_call, s.nb_assignment_before_backtracking, t1 - t0)
+
+    print_statistics(result, s.nb_recursive_call, s.nb_assignment_before_backtracking, t1 - t0)
