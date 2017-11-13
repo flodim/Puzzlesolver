@@ -257,7 +257,7 @@ def profile_solvers_csv(solvers: Iterable[PuzzleSolver], puzzles : Iterable[Puzz
 
 if __name__ == '__main__':
     solvers = (
-        # PuzzleSolver(),
+        PuzzleSolver(),
         PuzzleSolverCountCorrect(),
         PuzzleSolverManhattan(),
         PuzzleSolverHybrid(),
