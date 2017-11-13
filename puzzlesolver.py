@@ -1,10 +1,9 @@
-from abc import ABC, abstractstaticmethod, abstractmethod
-from collections import deque
-from time import time
-from typing import Tuple, Iterable, List, Reversible, Iterator
-from sys import stdin
-from io import StringIO
 import heapq
+from io import StringIO
+from statistics import mean
+from sys import stdin
+from time import time
+from typing import Tuple, Iterable, List
 
 
 def int_sqrt(number: int):
@@ -55,9 +54,14 @@ class PuzzleState:
         raise Exception("Cannot find empty index.")
 
     def swap(self, index1: int, index2: int) -> 'PuzzleState':
-        state_as_list = list(self.pieces)
-        state_as_list[index1], state_as_list[index2] = state_as_list[index2], state_as_list[index1]
-        return PuzzleState(tuple(state_as_list), self.size, self)
+        min_index, max_index = (index1, index2) if index1 < index2 else (index2, index1)
+        new_pieces = (*self.pieces[:min_index],
+                      self.pieces[max_index],
+                      *self.pieces[min_index+1:max_index],
+                      self.pieces[min_index],
+                      *self.pieces[max_index+1:])
+
+        return PuzzleState(new_pieces, self.size, self)
 
     def successors(self) -> Iterable['PuzzleState']:
         empty_index = self.empty_index()
@@ -67,7 +71,7 @@ class PuzzleState:
             yield self.swap(empty_index, left_index)
 
         down_index = empty_index + self.size
-        if down_index < self.size * self.size:
+        if down_index < len(self.pieces):
             yield self.swap(empty_index, down_index)
 
         up_index = empty_index - self.size
@@ -90,29 +94,38 @@ class PuzzleState:
 
     def count_incorrect(self) -> int:
         nb_incorrect = 0
-        last_i = len(self.pieces) - 1
-        for i, piece in enumerate(self.pieces):
-            if piece != i+1 or (piece == 0 and i != last_i):
+
+        for i, piece in enumerate(self.pieces[:-1]):
+            if piece != i+1:
                 nb_incorrect += 1
+
+        if self.pieces[-1] != 0:
+            nb_incorrect += 1
+
         return nb_incorrect
 
-    def manhattan(self) -> int:
-        distance = 0
+    def rowcol(self, index) -> Tuple[int, int]:
+        return divmod(index, self.size)
 
+    def expected_rowcol(self, piece):
+        if piece == 0:
+            expected_row = expected_col = self.size - 1
+        else:
+            expected_row, expected_col = self.rowcol(piece-1)
+        return expected_row, expected_col
+
+    def manhattan_sum(self) -> int:
+        distance = 0
         for i, piece in enumerate(self.pieces):
             row, col = divmod(i, self.size)
-            if piece == 0:
-                expected_row = expected_col = self.size - 1
-            else:
-                expected_row, expected_col = divmod(piece-1, self.size)
-
+            expected_row, expected_col = self.expected_rowcol(piece)
             distance += abs(col-expected_col) + abs(row-expected_row)
         return distance
 
     def __str__(self):
         with StringIO() as string:
             for i in range(0, len(self.pieces), self.size):
-                print(*self.pieces[i:i+self.size], sep="\t", file=string)
+                print(*self.pieces[i:i+self.size], sep=",", file=string)
             return string.getvalue()
 
     def __hash__(self):
@@ -123,6 +136,8 @@ class PuzzleState:
 
 
 class PuzzleSolver:
+    def __init__(self):
+        self.iterations = 0
 
     def init_next_states(self, initial_state: PuzzleState) -> List[PuzzleState]:
         return [initial_state]
@@ -134,9 +149,11 @@ class PuzzleSolver:
         next_states.append(state)
 
     def iter_next_states(self, next_states) -> Iterable[PuzzleState]:
+        self.iterations = 0
         while True:
             try:
                 yield self.pop_state(next_states)
+                self.iterations += 1
             except IndexError:
                 break
 
@@ -164,6 +181,7 @@ class PuzzleSolver:
 class PuzzleSolverCountCorrect(PuzzleSolver):
 
     def __init__(self):
+        super().__init__()
         self.push_count = 0
 
     def get_state_weight(self, state: PuzzleState) -> int:
@@ -188,45 +206,91 @@ class PuzzleSolverCountCorrect(PuzzleSolver):
 
 class PuzzleSolverManhattan(PuzzleSolverCountCorrect):
     def get_state_weight(self, state: PuzzleState):
-        return state.manhattan()
+        return state.manhattan_sum()
 
 
-def test_solver(solver: PuzzleSolver, puzzle: PuzzleState):
-
-    start_time = time()
-    solution = solver.solve(puzzle)
-    end_time = time()
-
-    print("Solver: %s" % solver.__class__.__name__)
-    print("Size: %s" % puzzle.size)
-    print("Solution steps: %s" % len(list(solution)) if solution else "not solved")
-    print("Duration: %s" % (end_time - start_time))
-    print()
+class PuzzleSolverHybrid(PuzzleSolverCountCorrect):
+    def get_state_weight(self, state: PuzzleState):
+        return state.manhattan_sum() + state.count_incorrect()
 
 
-def test_solvers(*solvers: PuzzleSolver):
+def profile_solvers(solvers: Iterable[PuzzleSolver], puzzles : Iterable[PuzzleState]):
+    for puzzle in puzzles:
+        print(puzzle)
+        for solver in solvers:
+            start_time = time()
+            solution = solver.solve(puzzle)
+            end_time = time()
+
+            print("Solver: %s" % solver.__class__.__name__)
+            print("Size: %s" % puzzle.size)
+            print("Solution steps: %s" % len(list(solution)) if solution else None)
+            print("Iterations: %s" % solver.iterations)
+            print("Duration: %s" % (end_time - start_time))
+
+
+def profile_solvers_csv(solvers: Iterable[PuzzleSolver], puzzles : Iterable[PuzzleState], iterations_per_test: int):
+    for puzzle in puzzles:
+        print(puzzle)
+        print("Solver name,Size,Solution steps,Iterations,Mean duration,Min duration,Max duration,Iterations per test")
+        for solver in solvers:
+            durations = []
+            solution = None
+            for n in range(iterations_per_test):
+                start_time = time()
+                solution = solver.solve(puzzle)
+                end_time = time()
+                durations.append(end_time - start_time)
+
+            name = solver.__class__.__name__
+            size = puzzle.size
+            steps = len(list(solution)) if solution else None
+            iterations = solver.iterations
+
+            mean_duration = mean(durations)
+            max_duration = max(durations)
+            min_duration = min(durations)
+
+            print(name, size, steps, iterations, mean_duration, min_duration, max_duration, iterations_per_test, sep=',')
+        print()
+
+
+if __name__ == '__main__':
+    solvers = (
+        # PuzzleSolver(),
+        PuzzleSolverCountCorrect(),
+        PuzzleSolverManhattan(),
+        PuzzleSolverHybrid(),
+    )
 
     puzzles = (
         PuzzleState((5, 4, 0,
                      6, 1, 8,
                      7, 3, 2), 3),
 
+        PuzzleState((2,  1,  3, 15,
+                     7, 10,  4,  8,
+                     14, 6, 13,  5,
+                     11, 9, 12,  0), 4),
+
+        PuzzleState((3,   7,   4, 10, 15,
+                     0,   1,   5,  8, 20,
+                     12,  2,  13,  9, 24,
+                     6,   17,  21, 14, 23,
+                     11,  18,  16, 19,  22), 5),
+
+        PuzzleState((23,  3,  2,  8, 13,
+                     24,  5,  1, 12, 10,
+                     19,  9, 18, 15, 22,
+                     11, 16,  7,  4, 17,
+                     20, 14,  6, 21, 0), 5),
+
         PuzzleState((9,  4,  1,  21, 12, 10,
                      15, 11, 23, 8,  25, 18,
                      28, 7,  32, 0,  17, 27,
                      16, 13, 19, 29, 35, 6,
                      24, 20, 2,  30, 5,  3,
-                     26, 22, 33, 14, 31, 34), 6)
+                     26, 22, 33, 14, 31, 34), 6),
     )
 
-    for puzzle in puzzles:
-        for solver in solvers:
-            test_solver(solver, puzzle)
-
-
-if __name__ == '__main__':
-    test_solvers(
-        PuzzleSolverCountCorrect(),
-        PuzzleSolverManhattan(),
-        PuzzleSolver(),
-    )
+    profile_solvers_csv(solvers, puzzles, 10)
